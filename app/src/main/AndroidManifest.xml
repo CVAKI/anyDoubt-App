@@ -12,6 +12,7 @@
     <!-- For Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Query for PDF files -->
     <queries>
@@ -61,6 +62,16 @@
             android:name=".AnalyzingLoadingActivity"
             android:exported="false"
             android:theme="@style/Theme.AnyDoubt" />
+        <activity
+            android:name=".GalleryActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".NoteDetailActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
     </application>
 
 </manifest>

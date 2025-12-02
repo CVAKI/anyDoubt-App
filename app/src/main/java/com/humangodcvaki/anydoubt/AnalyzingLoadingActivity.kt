@@ -48,7 +48,7 @@ fun AnalyzingLoadingScreen() {
     var rotation by remember { mutableStateOf(0f) }
     var isFastRotation by remember { mutableStateOf(true) }
 
-    // Dynamic rotation with alternating speeds
+    // Dynamic rotation with alternating speeds (kept from original)
     LaunchedEffect(Unit) {
         while (true) {
             val duration = if (isFastRotation) 800L else 2500L
@@ -69,7 +69,22 @@ fun AnalyzingLoadingScreen() {
         }
     }
 
-    // Pulsing animation for text
+    // 1. Progress Animation for the Bar and Percentage Text (MODIFIED duration)
+    val progressTransition = rememberInfiniteTransition(label = "progress")
+    val progress by progressTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 15000, // Increased to 15 seconds to simulate a long process
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "progress"
+    )
+
+    // Pulsing animation for text (kept from original)
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
 
     val pulse by infiniteTransition.animateFloat(
@@ -114,9 +129,10 @@ fun AnalyzingLoadingScreen() {
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Animated Text
+            // 2. Animated Text with Percentage
             Text(
-                text = "Analyzing...",
+                // Display the animated progress as an integer percentage
+                text = "Analyzing... ${(progress * 100).toInt()}%",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = RedPrimary.copy(alpha = pulse.coerceIn(0f, 1f)),
@@ -144,8 +160,10 @@ fun AnalyzingLoadingScreen() {
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Loading indicator
+            // 3. Loading indicator
             LinearProgressIndicator(
+                // Use the animated progress value
+                progress = { progress },
                 color = RedPrimary,
                 trackColor = RedLight.copy(alpha = 0.3f),
                 modifier = Modifier

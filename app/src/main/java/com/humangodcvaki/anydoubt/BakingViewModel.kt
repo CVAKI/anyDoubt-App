@@ -24,19 +24,26 @@ class BakingViewModel : ViewModel() {
     )
 
     fun sendPrompt(
-        bitmap: Bitmap,
+        bitmap: Bitmap?,
         prompt: String
     ) {
         _uiState.value = UiState.Loading
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response = generativeModel.generateContent(
-                    content {
-                        image(bitmap)
-                        text(prompt)
-                    }
-                )
+                val response = if (bitmap != null) {
+                    // If bitmap exists, send both image and text
+                    generativeModel.generateContent(
+                        content {
+                            image(bitmap)
+                            text(prompt)
+                        }
+                    )
+                } else {
+                    // If no bitmap, send only text
+                    generativeModel.generateContent(prompt)
+                }
+
                 response.text?.let { outputContent ->
                     _uiState.value = UiState.Success(outputContent)
                 }

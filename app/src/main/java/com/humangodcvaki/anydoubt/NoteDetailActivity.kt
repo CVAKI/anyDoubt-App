@@ -1,12 +1,5 @@
 package com.humangodcvaki.anydoubt
 
-import android.content.Intent
-import coil.compose.AsyncImage
-import androidx.compose.ui.layout.ContentScale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
@@ -34,107 +27,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.humangodcvaki.anydoubt.ui.theme.AnyDoubtTheme
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.*
 
-
-// Custom colors - MUST BE PRIVATE to avoid conflicts
 private val RedPrimary = Color(0xFFF02828)
 private val RedSecondary = Color(0xFFD67474)
 private val RedLight = Color(0xFFFFE5E5)
 
-// Language options
-data class LanguageOption(val name: String, val locale: Locale, val displayName: String)
-
-val availableLanguages = listOf(
-    LanguageOption("English (US)", Locale.US, "English 🇺🇸"),
-    LanguageOption("English (UK)", Locale.UK, "English 🇬🇧"),
-    LanguageOption("Hindi", Locale("hi", "IN"), "हिंदी 🇮🇳"),
-    LanguageOption("Malayalam", Locale("ml", "IN"), "മലയാളം 🇮🇳"),
-    LanguageOption("Spanish", Locale("es", "ES"), "Español 🇪🇸"),
-    LanguageOption("French", Locale.FRENCH, "Français 🇫🇷"),
-    LanguageOption("German", Locale.GERMAN, "Deutsch 🇩🇪"),
-    LanguageOption("Italian", Locale.ITALIAN, "Italiano 🇮🇹"),
-    LanguageOption("Japanese", Locale.JAPANESE, "日本語 🇯🇵"),
-    LanguageOption("Korean", Locale.KOREAN, "한국어 🇰🇷"),
-    LanguageOption("Chinese", Locale.CHINESE, "中文 🇨🇳")
-)
-
-// Helper function to detect if user is asking for a diagram/image
-fun isDiagramRequest(question: String): Boolean {
-    val diagramKeywords = listOf(
-        "diagram", "image", "picture", "graph", "chart", "illustration",
-        "figure", "visual", "drawing", "sketch", "flowchart", "show me",
-        "photo", "graphic", "map", "plot"
-    )
-    return diagramKeywords.any { question.lowercase().contains(it) }
-}
-
-// Data class for image search result
-data class ImageSearchResult(
-    val imageUrl: String,
-    val title: String,
-    val source: String
-)
-
-// Function to search for images using Google Custom Search API or Bing API
-suspend fun searchDiagramImages(query: String): List<ImageSearchResult> {
-    return withContext(Dispatchers.IO) {
-        try {
-            // Using Bing Image Search API (you can also use Google Custom Search)
-            val searchQuery = "$query diagram illustration"
-            val apiKey = "YOUR_BING_API_KEY_HERE" // Get free key from Azure
-            val url = "https://api.bing.microsoft.com/v7.0/images/search?q=${
-                java.net.URLEncoder.encode(searchQuery, "UTF-8")
-            }&count=3&imageType=Photo"
-
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.setRequestProperty("Ocp-Apim-Subscription-Key", apiKey)
-            connection.requestMethod = "GET"
-
-            if (connection.responseCode == 200) {
-                val response = connection.inputStream.bufferedReader().readText()
-                val jsonObject = org.json.JSONObject(response)
-                val results = mutableListOf<ImageSearchResult>()
-
-                val values = jsonObject.getJSONArray("value")
-                for (i in 0 until minOf(3, values.length())) {
-                    val item = values.getJSONObject(i)
-                    results.add(
-                        ImageSearchResult(
-                            imageUrl = item.getString("contentUrl"),
-                            title = item.getString("name"),
-                            source = item.getString("hostPageUrl")
-                        )
-                    )
-                }
-                results
-            } else {
-                emptyList()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-}
-
-class AnswerActivity : ComponentActivity() {
+class NoteDetailActivity : ComponentActivity() {
+    private lateinit var database: AppDatabase
     private lateinit var textToSpeech: TextToSpeech
     private var isTtsReady = false
-    private lateinit var database: AppDatabase
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         database = AppDatabase.getDatabase(this)
 
-        // Get and clean the analysis result - remove ** and * symbols
-        val rawResult = intent.getStringExtra("ANALYSIS_RESULT") ?: "No result available"
-        val cleanedResult = rawResult
-            .replace("**", "")
-            .replace("*", "")
-            .trim()
+        val noteId = intent.getIntExtra("NOTE_ID", -1)
 
         // Initialize TTS
         textToSpeech = TextToSpeech(this) { status ->
@@ -144,115 +56,67 @@ class AnswerActivity : ComponentActivity() {
         }
 
         setContent {
+            var isReading by remember { mutableStateOf(false) }
             var currentLocale by remember { mutableStateOf(Locale.US) }
-            var translatedResult by remember { mutableStateOf(cleanedResult) }
-            var showSaveDialog by remember { mutableStateOf(false) }
 
             AnyDoubtTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.White
                 ) {
-                    AnswerScreen(
-                        analysisResult = translatedResult,
-                        originalContent = cleanedResult,
-                        currentLanguage = currentLocale,
-                        onLanguageChange = { locale ->
-                            currentLocale = locale
-                            val result = textToSpeech.setLanguage(locale)
-                            val success = result != TextToSpeech.LANG_MISSING_DATA &&
-                                    result != TextToSpeech.LANG_NOT_SUPPORTED
-                            if (!success) {
-                                Toast.makeText(
-                                    this@AnswerActivity,
-                                    "Language not supported on your device",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                translatedResult = translateText(cleanedResult, locale)
-                                Toast.makeText(
-                                    this@AnswerActivity,
-                                    "Language changed successfully",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        },
-                        onReadAloud = { text ->
-                            if (isTtsReady) {
-                                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
-                            } else {
-                                Toast.makeText(
-                                    this@AnswerActivity,
-                                    "Text-to-Speech not ready yet",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        },
-                        onStopReading = {
-                            if (textToSpeech.isSpeaking) {
-                                textToSpeech.stop()
-                            }
-                        },
-                        onSaveNote = {
-                            showSaveDialog = true
-                        },
-                        showSaveDialog = showSaveDialog,
-                        onDismissSaveDialog = { showSaveDialog = false },
-                        onConfirmSave = { title ->
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                val note = SavedNote(
-                                    title = title,
-                                    content = translatedResult,
-                                    timestamp = System.currentTimeMillis(),
-                                    language = currentLocale.displayLanguage
-                                )
-                                database.noteDao().insertNote(note)
-
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    if (noteId != -1) {
+                        NoteDetailScreen(
+                            database = database,
+                            noteId = noteId,
+                            currentLanguage = currentLocale,
+                            isReading = isReading,
+                            onLanguageChange = { locale ->
+                                currentLocale = locale
+                                val result = textToSpeech.setLanguage(locale)
+                                val success = result != TextToSpeech.LANG_MISSING_DATA &&
+                                        result != TextToSpeech.LANG_NOT_SUPPORTED
+                                if (!success) {
                                     Toast.makeText(
-                                        this@AnswerActivity,
-                                        "Note saved successfully!",
+                                        this@NoteDetailActivity,
+                                        "Language not supported on your device",
                                         Toast.LENGTH_SHORT
                                     ).show()
-                                    showSaveDialog = false
+                                } else {
+                                    Toast.makeText(
+                                        this@NoteDetailActivity,
+                                        "Language changed successfully",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
+                            },
+                            onReadAloud = { text ->
+                                if (isTtsReady) {
+                                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+                                    isReading = true
+                                } else {
+                                    Toast.makeText(
+                                        this@NoteDetailActivity,
+                                        "Text-to-Speech not ready yet",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            onStopReading = {
+                                if (textToSpeech.isSpeaking) {
+                                    textToSpeech.stop()
+                                }
+                                isReading = false
+                            },
+                            onBack = {
+                                if (textToSpeech.isSpeaking) {
+                                    textToSpeech.stop()
+                                }
+                                finish()
                             }
-                        },
-                        onBack = {
-                            if (textToSpeech.isSpeaking) {
-                                textToSpeech.stop()
-                            }
-                            val intent = Intent(this, MainActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                            }
-                            startActivity(intent)
-                            finish()
-                        }
-                    )
+                        )
+                    }
                 }
             }
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        super.onBackPressed() // Added super call
-        if (textToSpeech.isSpeaking) {
-            textToSpeech.stop()
-        }
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        startActivity(intent)
-        finish()
-    }
-
-    private fun translateText(text: String, locale: Locale): String {
-        return when (locale.language) {
-            "hi" -> text
-            "ml" -> text
-            "es" -> text
-            else -> text
         }
     }
 
@@ -267,28 +131,18 @@ class AnswerActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AnswerScreen(
-    analysisResult: String,
-    originalContent: String,
+fun NoteDetailScreen(
+    database: AppDatabase,
+    noteId: Int,
     currentLanguage: Locale,
+    isReading: Boolean,
     onLanguageChange: (Locale) -> Unit,
     onReadAloud: (String) -> Unit,
     onStopReading: () -> Unit,
-    onSaveNote: () -> Unit,
-    showSaveDialog: Boolean,
-    onDismissSaveDialog: () -> Unit,
-    onConfirmSave: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    var isReading by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<SavedNote?>(null) }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    var question by remember { mutableStateOf("") }
-    var qaHistory by remember { mutableStateOf<List<Triple<String, String, List<ImageSearchResult>?>>>(emptyList()) }
-    var isProcessingQuestion by remember { mutableStateOf(false) }
-    var noteTitle by remember { mutableStateOf("") }
-
-    val qaViewModel: BakingViewModel = viewModel()
-    val scope = rememberCoroutineScope()
 
     val infiniteTransition = rememberInfiniteTransition(label = "wave")
     val audioWave by infiniteTransition.animateFloat(
@@ -301,164 +155,144 @@ fun AnswerScreen(
         label = "audioWave"
     )
 
-    // Save Dialog
-    if (showSaveDialog) {
-        AlertDialog(
-            onDismissRequest = onDismissSaveDialog,
-            icon = {
-                Icon(
-                    Icons.Default.Create,
-                    contentDescription = null,
-                    tint = RedPrimary,
-                    modifier = Modifier.size(48.dp)
-                )
-            },
-            title = {
-                Text(
-                    "Save Note",
-                    fontWeight = FontWeight.Bold,
-                    color = RedPrimary
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        "Enter a title for this note:",
-                        fontSize = 14.sp,
-                        color = Color.DarkGray,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    OutlinedTextField(
-                        value = noteTitle,
-                        onValueChange = { noteTitle = it },
-                        placeholder = { Text("e.g., Math Notes - Quadratic Equations") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = RedPrimary,
-                            cursorColor = RedPrimary
-                        )
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (noteTitle.isNotBlank()) {
-                            onConfirmSave(noteTitle)
-                            noteTitle = ""
-                        }
-                    },
-                    enabled = noteTitle.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
-                ) {
-                    Text("Save", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    onDismissSaveDialog()
-                    noteTitle = ""
-                }) {
-                    Text("Cancel", color = Color.Gray, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
-        )
+    LaunchedEffect(noteId) {
+        note = database.noteDao().getNoteById(noteId)
     }
 
-    if (showLanguageDialog) {
-        AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = null,
-                        tint = RedPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Select Voice Language",
-                        fontWeight = FontWeight.Bold,
-                        color = RedPrimary
-                    )
+    if (note == null) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = RedPrimary)
+        }
+    } else {
+        NoteDetailScreenContent(
+            note = note!!,
+            isReading = isReading,
+            audioWave = audioWave,
+            currentLanguage = currentLanguage,
+            showLanguageDialog = showLanguageDialog,
+            onLanguageDialogChange = { showLanguageDialog = it },
+            onReadAloudToggle = {
+                if (isReading) {
+                    onStopReading()
+                } else {
+                    onReadAloud(note!!.content)
                 }
             },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .heightIn(max = 400.dp)
-                ) {
-                    availableLanguages.forEach { lang ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            onClick = {
-                                onLanguageChange(lang.locale)
-                                showLanguageDialog = false
-                            },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (lang.locale.language == currentLanguage.language)
-                                    RedPrimary.copy(alpha = 0.15f)
-                                else
-                                    Color.White
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    lang.displayName,
-                                    fontSize = 16.sp,
-                                    fontWeight = if (lang.locale.language == currentLanguage.language)
-                                        FontWeight.Bold
-                                    else
-                                        FontWeight.Normal,
-                                    color = if (lang.locale.language == currentLanguage.language)
-                                        RedPrimary
-                                    else
-                                        Color.DarkGray
-                                )
-                                if (lang.locale.language == currentLanguage.language) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = RedPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
+            onBack = onBack
+        )
+
+        // Language Dialog
+        if (showLanguageDialog) {
+            LanguageSelectionDialog(
+                currentLanguage = currentLanguage,
+                onLanguageSelected = { locale ->
+                    onLanguageChange(locale)
+                    showLanguageDialog = false
+                },
+                onDismiss = { showLanguageDialog = false }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NoteDetailScreen(
+    database: AppDatabase,
+    noteId: Int,
+    textToSpeech: TextToSpeech,
+    isTtsReady: Boolean,
+    onBack: () -> Unit
+) {
+    var note by remember { mutableStateOf<SavedNote?>(null) }
+    var isReading by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var currentLanguage by remember { mutableStateOf(Locale.US) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "wave")
+    val audioWave by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "audioWave"
+    )
+
+    LaunchedEffect(noteId) {
+        note = database.noteDao().getNoteById(noteId)
+    }
+
+    if (note == null) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = RedPrimary)
+        }
+    } else {
+        NoteDetailScreenContent(
+            note = note!!,
+            isReading = isReading,
+            audioWave = audioWave,
+            currentLanguage = currentLanguage,
+            showLanguageDialog = showLanguageDialog,
+            onLanguageDialogChange = { showLanguageDialog = it },
+            onReadAloudToggle = {
+                if (isTtsReady) {
+                    if (isReading) {
+                        textToSpeech.stop()
+                        isReading = false
+                    } else {
+                        textToSpeech.speak(note!!.content, TextToSpeech.QUEUE_FLUSH, null, null)
+                        isReading = true
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
-                    Text("Close", color = RedPrimary, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
+            onBack = onBack
         )
-    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
+        // Language Dialog
+        if (showLanguageDialog) {
+            LanguageSelectionDialog(
+                currentLanguage = currentLanguage,
+                onLanguageSelected = { locale ->
+                    currentLanguage = locale
+                    textToSpeech.setLanguage(locale)
+                    showLanguageDialog = false
+                },
+                onDismiss = { showLanguageDialog = false }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NoteDetailScreenContent(
+    note: SavedNote,
+    isReading: Boolean,
+    audioWave: Float,
+    currentLanguage: Locale,
+    showLanguageDialog: Boolean,
+    onLanguageDialogChange: (Boolean) -> Unit,
+    onReadAloudToggle: () -> Unit,
+    onBack: () -> Unit
+) {
+    var question by remember { mutableStateOf("") }
+    var qaHistory by remember { mutableStateOf<List<Triple<String, String, List<ImageSearchResult>?>>>(emptyList()) }
+    var isProcessingQuestion by remember { mutableStateOf(false) }
+
+    val qaViewModel: BakingViewModel = viewModel()
+    val scope = rememberCoroutineScope()
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // Top App Bar
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -470,7 +304,7 @@ fun AnswerScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "anyDoubt",
+                            "My Saved Note",
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -489,17 +323,9 @@ fun AnswerScreen(
                     containerColor = RedPrimary
                 ),
                 actions = {
-                    // Save button
-                    IconButton(onClick = onSaveNote) {
-                        Icon(
-                            Icons.Default.Create,
-                            contentDescription = "Save Note",
-                            tint = Color.White
-                        )
-                    }
                     // Language indicator button (white square)
                     Surface(
-                        onClick = { showLanguageDialog = true },
+                        onClick = { onLanguageDialogChange(true) },
                         shape = RoundedCornerShape(8.dp),
                         color = Color.White,
                         modifier = Modifier.padding(end = 8.dp)
@@ -521,6 +347,7 @@ fun AnswerScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(20.dp)
             ) {
+                // Audio Reading Indicator
                 AnimatedVisibility(
                     visible = isReading,
                     enter = fadeIn() + expandVertically(),
@@ -565,12 +392,11 @@ fun AnswerScreen(
                     }
                 }
 
+                // Main Content Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
@@ -580,7 +406,7 @@ fun AnswerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "📚 Teacher Explanation",
+                                text = "📚 ${note.title}",
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = RedPrimary
@@ -600,18 +426,55 @@ fun AnswerScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    tint = RedSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                        .format(Date(note.timestamp)),
+                                    fontSize = 12.sp,
+                                    color = RedSecondary
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = RedPrimary.copy(alpha = 0.1f)
+                            ) {
+                                Text(
+                                    text = note.language,
+                                    fontSize = 12.sp,
+                                    color = RedPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
                         HorizontalDivider(
                             color = RedSecondary.copy(alpha = 0.3f),
                             thickness = 2.dp,
                             modifier = Modifier.padding(vertical = 16.dp)
                         )
 
-                        FormattedExplanation(analysisResult)
+                        FormattedExplanation(note.content)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Ask anyDoubt Section
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -672,15 +535,15 @@ fun AnswerScreen(
                                                     } else {
                                                         // Regular text-based answer
                                                         val contextPrompt = """
-                                    Based on this explanation:
-                                    
-                                    $originalContent
-                                    
-                                    Answer this follow-up question briefly and clearly:
-                                    $userQuestion
-                                    
-                                    Keep the answer concise and directly related to the content above.
-                                """.trimIndent()
+                                                            Based on this saved note:
+                                                            
+                                                            ${note.content}
+                                                            
+                                                            Answer this follow-up question briefly and clearly:
+                                                            $userQuestion
+                                                            
+                                                            Keep the answer concise and directly related to the content above.
+                                                        """.trimIndent()
 
                                                         val answer = qaViewModel.askFollowUpQuestion(contextPrompt)
                                                         qaHistory = qaHistory + Triple(userQuestion, answer, null)
@@ -826,15 +689,7 @@ fun AnswerScreen(
 
         // FloatingActionButton with emoji
         FloatingActionButton(
-            onClick = {
-                if (isReading) {
-                    onStopReading()
-                    isReading = false
-                } else {
-                    onReadAloud(analysisResult)
-                    isReading = true
-                }
-            },
+            onClick = onReadAloudToggle,
             containerColor = RedPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -859,128 +714,130 @@ fun AnswerScreen(
     }
 }
 @Composable
-fun FormattedExplanation(text: String) {
-    val lines = text.split("\n")
-
-    Column {
-        lines.forEach { line ->
-            when {
-                line.trim().endsWith(":") -> {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = line.trim(),
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Black,
-                        color = RedPrimary,
-                        lineHeight = 28.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                line.trim().matches(Regex("^\\d+\\..*")) -> {
-                    Row(
-                        modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
-                    ) {
-                        Text(
-                            text = line.trim(),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray,
-                            lineHeight = 23.sp
-                        )
-                    }
-                }
-                line.trim().startsWith("-") || line.trim().startsWith("•") -> {
-                    Row(
-                        modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
-                    ) {
-                        Text(
-                            text = line.trim(),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray,
-                            lineHeight = 23.sp
-                        )
-                    }
-                }
-                line.isNotBlank() -> {
-                    Text(
-                        text = line.trim(),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.DarkGray,
-                        lineHeight = 23.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-                else -> {
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+fun LanguageSelectionDialog(
+    currentLanguage: Locale,
+    onLanguageSelected: (Locale) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = null,
+                    tint = RedPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Select Voice Language",
+                    fontWeight = FontWeight.Bold,
+                    color = RedPrimary
+                )
             }
-        }
-    }
-}
-
-@Composable
-fun DiagramDisplay(images: List<ImageSearchResult>) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        images.forEach { imageResult ->
-            Card(
+        },
+        text = {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(max = 400.dp)
             ) {
-                Column {
-                    // Display the image using Coil
-                    AsyncImage(
-                        model = imageResult.imageUrl,
-                        contentDescription = imageResult.title,
+                availableLanguages.forEach { lang ->
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp),
-                        contentScale = ContentScale.Fit
-                    )
-
-                    // Image title and source
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = imageResult.title,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.DarkGray,
-                            maxLines = 2
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Source: ${imageResult.source}",
-                            fontSize = 10.sp,
-                            color = Color.Gray,
-                            maxLines = 1
-                        )
+                            .padding(vertical = 4.dp),
+                        onClick = { onLanguageSelected(lang.locale) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (lang.locale.language == currentLanguage.language)
+                                RedPrimary.copy(alpha = 0.15f)
+                            else
+                                Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                lang.displayName,
+                                fontSize = 16.sp,
+                                fontWeight = if (lang.locale.language == currentLanguage.language)
+                                    FontWeight.Bold
+                                else
+                                    FontWeight.Normal,
+                                color = if (lang.locale.language == currentLanguage.language)
+                                    RedPrimary
+                                else
+                                    Color.DarkGray
+                            )
+                            if (lang.locale.language == currentLanguage.language) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = RedPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = RedPrimary, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(20.dp)
+    )
 }
 
 @Preview(showBackground = true)
 @Composable
-fun AnswerScreenPreview() {
+fun NoteDetailScreenPreview() {
     AnyDoubtTheme {
-        AnswerScreen(
-            analysisResult = "The first law of thermodynamics is a statement of the conservation of energy.",
-            originalContent = "The first law of thermodynamics is a statement of the conservation of energy.",
+        NoteDetailScreenContent(
+            note = SavedNote(
+                id = 1,
+                title = "Quadratic Equations - Mathematics",
+                content = """
+                    Understanding Quadratic Equations:
+                    
+                    A quadratic equation is a second-degree polynomial equation in a single variable x.
+                    
+                    Standard Form:
+                    ax² + bx + c = 0
+                    
+                    Key Points:
+                    1. The highest power of the variable is 2
+                    2. It always has two solutions (roots)
+                    3. The graph is a parabola
+                    
+                    Methods to Solve:
+                    - Factoring method
+                    - Quadratic formula
+                    - Completing the square
+                    - Graphical method
+                    
+                    The discriminant (b² - 4ac) determines the nature of roots.
+                """.trimIndent(),
+                timestamp = System.currentTimeMillis(),
+                language = "English"
+            ),
+            isReading = false,
+            audioWave = 1f,
             currentLanguage = Locale.US,
-            onLanguageChange = {},
-            onReadAloud = {},
-            onStopReading = {},
-            onSaveNote = {},
-            showSaveDialog = false,
-            onDismissSaveDialog = {},
-            onConfirmSave = { _ -> },
+            showLanguageDialog = false,
+            onLanguageDialogChange = {},
+            onReadAloudToggle = {},
             onBack = {}
         )
     }
