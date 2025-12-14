@@ -43,19 +43,14 @@ import com.humangodcvaki.anydoubt.ui.theme.AnyDoubtTheme
 import java.io.InputStream
 import java.util.*
 
-// Assuming R file is available and has 'anydoubt' drawable
-// If the app uses a resource file, R.drawable.anydoubt must be a valid reference.
-// For the provided file, this is assumed to be correct based on usage.
-
 // Custom colors
 private val RedPrimary = Color(0xFFF02828)
 private val RedSecondary = Color(0xFFD67474)
 private val RedLight = Color(0xFFFFE5E5)
 
-// Language options for settings - PRIVATE to avoid conflicts
-// Note: This needs the LanguageOption data class defined (it's defined in AnswerActivity.kt,
-// but should ideally be in a common file or duplicated/redefined here if not imported)
-
+// Note: LanguageOption data class and AdMobHelper class are assumed to be defined elsewhere.
+// LanguageOption is typically defined as:
+// data class LanguageOption(val name: String, val locale: Locale, val displayName: String)
 
 private val availableLanguagesForSettings = listOf(
     LanguageOption("English (US)", Locale.US, "English 🇺🇸"),
@@ -77,6 +72,10 @@ fun BakingScreen(
     bakingViewModel: BakingViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val activity = context as? ComponentActivity
+
+    // Initialize AdMob Helper
+    val adMobHelper = remember { AdMobHelper(context) }
 
     var selectedPdfPages by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -166,7 +165,7 @@ fun BakingScreen(
 
                     // UPDATED LIMITS
                     val MAX_WIDTH = 1536
-                    val MAX_PAGES = 50  // Increased to 50
+                    val MAX_PAGES = 50
                     val SPACING_BETWEEN_PAGES = 10
                     val MAX_TOTAL_HEIGHT = 30000
 
@@ -276,6 +275,7 @@ fun BakingScreen(
             }
         }
     }
+
     // Watch for successful analysis
     LaunchedEffect(uiState) {
         if (uiState is UiState.Success) {
@@ -299,104 +299,9 @@ fun BakingScreen(
         }
     }
 
-    BakingScreenContent(
-        selectedBitmap = selectedBitmap,
-        selectedPdfPages = selectedPdfPages,
-        selectedFileName = selectedFileName,
-        fileType = fileType,
-        prompt = prompt,
-        uiState = uiState,
-        selectedLanguage = selectedLanguage,
-        showLanguageDialog = showLanguageDialog,
-        showPdfErrorDialog = showPdfErrorDialog,
-        pdfErrorMessage = pdfErrorMessage,
-        onPromptChange = { prompt = it },
-        onCameraClick = { cameraLauncher.launch(null) },
-        onImageClick = { imagePickerLauncher.launch("image/*") },
-        onPdfClick = { pdfPickerLauncher.launch("application/pdf") },
-        onAnalyzeClick = {
-            selectedBitmap?.let { bitmap ->
-                // Navigate to loading screen IMMEDIATELY
-                val loadingIntent = Intent(context, AnalyzingLoadingActivity::class.java)
-                context.startActivity(loadingIntent)
-
-                val languageName = when (selectedLanguage.language) {
-                    "en" -> "English"
-                    "hi" -> "Hindi"
-                    "ml" -> "Malayalam"
-                    "es" -> "Spanish"
-                    "fr" -> "French"
-                    "de" -> "German"
-                    "it" -> "Italian"
-                    "ja" -> "Japanese"
-                    "ko" -> "Korean"
-                    "zh" -> "Chinese"
-                    else -> "English"
-                }
-
-                val enhancedPrompt = if (selectedLanguage.language != "en") {
-                    """
-                    IMPORTANT: You must respond ENTIRELY in $languageName language.
-                    All explanations, descriptions, and text must be written in $languageName.
-                    
-                    User's question: $prompt
-                    """.trimIndent()
-                } else {
-                    prompt
-                }
-
-                // Start the analysis with language-enhanced prompt
-                bakingViewModel.sendPrompt(bitmap, enhancedPrompt)
-
-                // Clean up preview bitmaps immediately after starting analysis
-                selectedPdfPages.forEach {
-                    try { it.recycle() } catch (e: Exception) { }
-                }
-                selectedPdfPages = emptyList()
-
-                // Force GC
-                System.gc()
-            }
-        },
-        onClearClick = onClearSelection,
-        onQuickActionClick = { newPrompt -> prompt = newPrompt },
-        onLanguageClick = { showLanguageDialog = true },
-        onLanguageChange = { selectedLanguage = it },
-        onDismissLanguage = { showLanguageDialog = false },
-        onDismissPdfError = { showPdfErrorDialog = false },
-        onLogout = {
-            try {
-                FirebaseAuth.getInstance().signOut()
-                val intent = Intent(context, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-                context.startActivity(intent)
-                (context as? ComponentActivity)?.finish()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        },
-        onGalleryClick = {
-            val intent = Intent(context, GalleryActivity::class.java)
-            context.startActivity(intent)
-        }
-    )
-
-
-    // Watch for successful analysis
-    LaunchedEffect(uiState) {
-        if (uiState is UiState.Success) {
-            val intent = Intent(context, AnswerActivity::class.java)
-            intent.putExtra("ANALYSIS_RESULT", (uiState as UiState.Success).outputText)
-            intent.putExtra("SELECTED_LANGUAGE", selectedLanguage.language)
-            context.startActivity(intent)
-
-            // Recycle the PDF page bitmaps and main bitmap after successful navigation
-            selectedPdfPages.forEach { it.recycle() }
-            selectedPdfPages = emptyList()
-            selectedBitmap?.recycle()
-            selectedBitmap = null
-        }
+    // Preload ad when screen is composed////////////////////////////////////ADS''''''''''
+    LaunchedEffect(Unit) {
+        adMobHelper.preloadAd()
     }
 
     BakingScreenContent(
@@ -416,43 +321,51 @@ fun BakingScreen(
         onPdfClick = { pdfPickerLauncher.launch("application/pdf") },
         onAnalyzeClick = {
             selectedBitmap?.let { bitmap ->
-                // Navigate to loading screen IMMEDIATELY
-                val loadingIntent = Intent(context, AnalyzingLoadingActivity::class.java)
-                context.startActivity(loadingIntent)
+                // Show ad first, then proceed with analysis
+                activity?.let { act ->
+                    adMobHelper.showInterstitialAd(act) {
+                        // This callback runs after ad is dismissed or failed
 
-                val languageName = when (selectedLanguage.language) {
-                    "en" -> "English"
-                    "hi" -> "Hindi"
-                    "ml" -> "Malayalam"
-                    "es" -> "Spanish"
-                    "fr" -> "French"
-                    "de" -> "German"
-                    "it" -> "Italian"
-                    "ja" -> "Japanese"
-                    "ko" -> "Korean"
-                    "zh" -> "Chinese"
-                    else -> "English"
+                        // Navigate to loading screen IMMEDIATELY
+                        val loadingIntent = Intent(context, AnalyzingLoadingActivity::class.java)
+                        context.startActivity(loadingIntent)
+
+                        val languageName = when (selectedLanguage.language) {
+                            "en" -> "English"
+                            "hi" -> "Hindi"
+                            "ml" -> "Malayalam"
+                            "es" -> "Spanish"
+                            "fr" -> "French"
+                            "de" -> "German"
+                            "it" -> "Italian"
+                            "ja" -> "Japanese"
+                            "ko" -> "Korean"
+                            "zh" -> "Chinese"
+                            else -> "English"
+                        }
+
+                        val enhancedPrompt = if (selectedLanguage.language != "en") {
+                            """
+                            IMPORTANT: You must respond ENTIRELY in $languageName language.
+                            All explanations, descriptions, and text must be written in $languageName.
+                            
+                            User's question: $prompt
+                            """.trimIndent()
+                        } else {
+                            prompt
+                        }
+
+                        // Start the analysis with language-enhanced prompt
+                        bakingViewModel.sendPrompt(bitmap, enhancedPrompt)
+
+                        // Clean up preview bitmaps immediately after starting analysis
+                        selectedPdfPages.forEach {
+                            try { it.recycle() } catch (e: Exception) { }
+                        }
+                        selectedPdfPages = emptyList()
+                        System.gc()
+                    }
                 }
-
-                val enhancedPrompt = if (selectedLanguage.language != "en") {
-                    """
-                    IMPORTANT: You must respond ENTIRELY in $languageName language.
-                    All explanations, descriptions, and text must be written in $languageName.
-                    
-                    User's question: $prompt
-                    """.trimIndent()
-                } else {
-                    prompt
-                }
-
-                // Start the analysis with language-enhanced prompt
-                bakingViewModel.sendPrompt(bitmap, enhancedPrompt)
-
-                // Once analysis starts, clear the state for memory management in the screen
-                selectedPdfPages.forEach { it.recycle() }
-                selectedPdfPages = emptyList()
-                // Do NOT recycle selectedBitmap here, as the ViewModel needs it for the API call.
-                // It will be recycled upon success/error in the LaunchedEffect.
             }
         },
         onClearClick = onClearSelection,
@@ -480,14 +393,9 @@ fun BakingScreen(
     )
 }
 
-private fun Bitmap.copy(
-    config: Bitmap.Config?,
-    isMutable: Boolean
-): Bitmap {
-    val safeConfig = config ?: this.config
-    return Bitmap.createBitmap(this).copy(safeConfig, isMutable)
-}
-
+// NOTE: This extension function was in the first file but not used,
+// and may have been a mistake as it copies a Bitmap using another copy function.
+// It is omitted from the final merge as it is not present in the more complete code structure.
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -528,7 +436,7 @@ fun BakingScreenContent(
         label = "scale"
     )
 
-    // PDF Error Dialog (Keep existing)
+    // PDF Error Dialog
     if (showPdfErrorDialog) {
         AlertDialog(
             onDismissRequest = onDismissPdfError,
@@ -567,7 +475,7 @@ fun BakingScreenContent(
         )
     }
 
-    // Language Selection Dialog (Keep existing)
+    // Language Selection Dialog
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = onDismissLanguage,
@@ -970,7 +878,7 @@ fun BakingScreenContent(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Gallery Button - ADDED THIS BUTTON
+                    // Gallery Button
                     Button(
                         onClick = onGalleryClick,
                         modifier = Modifier
@@ -980,7 +888,7 @@ fun BakingScreenContent(
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Icon(
-                            Icons.Default.Favorite, // Note: You might want to use a different icon like Icons.Default.PhotoLibrary
+                            Icons.Default.Favorite, // Consider changing to a more appropriate icon like Icons.Default.PhotoLibrary
                             contentDescription = "My Gallery",
                             modifier = Modifier.size(24.dp)
                         )

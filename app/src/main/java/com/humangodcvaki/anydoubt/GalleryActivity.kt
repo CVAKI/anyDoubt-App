@@ -37,10 +37,14 @@ private val RedLight = Color(0xFFFFE5E5)
 
 class GalleryActivity : ComponentActivity() {
     private lateinit var database: AppDatabase
+    private lateinit var adMobHelper: AdMobHelper
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         database = AppDatabase.getDatabase(this)
+
+        // Initialize AdMob Helper
+        adMobHelper = AdMobHelper(this)
 
         setContent {
             AnyDoubtTheme {
@@ -51,15 +55,27 @@ class GalleryActivity : ComponentActivity() {
                     GalleryScreen(
                         database = database,
                         onNoteClick = { noteId ->
-                            val intent = Intent(this, NoteDetailActivity::class.java)
-                            intent.putExtra("NOTE_ID", noteId)
-                            startActivity(intent)
+                            // Show ad before opening note detail
+                            adMobHelper.showInterstitialAd(this) {
+                                // Navigate after ad is dismissed
+                                val intent = Intent(this, NoteDetailActivity::class.java)
+                                intent.putExtra("NOTE_ID", noteId)
+                                startActivity(intent)
+                            }
                         },
-                        onBack = { finish() }
+                        onBack = {
+                            // Show ad before going back
+                            adMobHelper.showInterstitialAd(this) {
+                                finish()
+                            }
+                        }
                     )
                 }
             }
         }
+
+        // Preload ad when gallery opens
+        adMobHelper.preloadAd()
     }
 }
 
@@ -187,7 +203,7 @@ fun GalleryScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Download notes from Answer screen to see them here",
+                        "Save notes from Answer screen to see them here",
                         fontSize = 14.sp,
                         color = RedSecondary,
                         textAlign = TextAlign.Center

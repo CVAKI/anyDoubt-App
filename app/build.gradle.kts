@@ -16,7 +16,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -55,6 +55,9 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.generativeai)
 
+    // Material Icons Extended - REQUIRED for PhoneAndroid, CloudDownload, etc.
+    implementation("androidx.compose.material:material-icons-extended:1.7.6")
+
     // AppCompat for XML themes
     implementation("androidx.appcompat:appcompat:1.7.0")
 
@@ -71,18 +74,24 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics-ktx")
     implementation(libs.androidx.compose.foundation.android)
 
-    // PDF parsing library (optional - for better PDF text extraction)
-    // implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // Firebase BOM
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+
+    // Firebase Realtime Database
+    implementation("com.google.firebase:firebase-database-ktx")
 
     // Room Database
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
-    
+
     implementation("io.coil-kt:coil-compose:2.5.0")
 
     // For JSON parsing
     implementation("org.json:json:20230227")
+
+    // Ads
+    implementation("com.google.android.gms:play-services-ads:22.6.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -91,5 +100,10 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+configurations.all {
+    resolutionStrategy {
+        force("com.google.android.gms:play-services-measurement-api:22.1.2")
 
+    }
 }

@@ -26,7 +26,9 @@ import com.humangodcvaki.anydoubt.ui.theme.AnyDoubtTheme
 import kotlinx.coroutines.delay
 
 // Custom colors
-private val RedPrimary = Color(0xFFE71010)
+private val RedBackground = Color(0xFFCE0000)
+private val BlueText = Color(0xFF003EFF)
+private val WhiteText = Color(0xFFFFFFFF)
 
 class SplashActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,7 +37,7 @@ class SplashActivity : ComponentActivity() {
             AnyDoubtTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.Black
+                    color = RedBackground
                 ) {
                     SplashScreen {
                         // Navigate to Login Activity after animation
@@ -77,14 +79,14 @@ fun SplashScreen(onTimeout: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(RedBackground)
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         // App Logo
         Image(
-            painter = painterResource(id = R.drawable.anydoubt),
+            painter = painterResource(id = R.drawable.transp),
             contentDescription = "App Logo",
             modifier = Modifier
                 .size(180.dp)
@@ -92,11 +94,11 @@ fun SplashScreen(onTimeout: () -> Unit = {}) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // App Name
+        // App Name - WHITE
         Text(
             text = "anyDoubt",
             fontSize = 36.sp,
-            color = RedPrimary,
+            color = WhiteText,
             fontWeight = FontWeight.Bold
         )
 
@@ -106,7 +108,7 @@ fun SplashScreen(onTimeout: () -> Unit = {}) {
         Text(
             text = "Powered by",
             fontSize = 16.sp,
-            color = Color.Gray,
+            color = WhiteText.copy(alpha = 0.8f),
             fontWeight = FontWeight.Light
         )
 
@@ -123,10 +125,11 @@ fun SplashScreen(onTimeout: () -> Unit = {}) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // NDSI text - BLUE
         Text(
             text = "NDSI",
             fontSize = 24.sp,
-            color = RedPrimary,
+            color = BlueText,
             fontWeight = FontWeight.Bold
         )
     }
@@ -138,7 +141,7 @@ fun SplashScreenPreview() {
     AnyDoubtTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color.Black
+            color = RedBackground
         ) {
             SplashScreen(onTimeout = {})
         }
@@ -152,12 +155,12 @@ fun SplashScreenStaticPreview() {
     AnyDoubtTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color.Black
+            color = RedBackground
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black)
+                    .background(RedBackground)
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -166,7 +169,7 @@ fun SplashScreenStaticPreview() {
                 Surface(
                     modifier = Modifier.size(180.dp),
                     shape = CircleShape,
-                    color = RedPrimary.copy(alpha = 0.2f)
+                    color = WhiteText.copy(alpha = 0.2f)
                 ) {
                     Box(
                         contentAlignment = Alignment.Center
@@ -175,18 +178,18 @@ fun SplashScreenStaticPreview() {
                             text = "anyDoubt\nLogo",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = RedPrimary
+                            color = WhiteText
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // App Name
+                // App Name - WHITE
                 Text(
                     text = "anyDoubt",
                     fontSize = 36.sp,
-                    color = RedPrimary,
+                    color = WhiteText,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -196,7 +199,7 @@ fun SplashScreenStaticPreview() {
                 Text(
                     text = "Powered by",
                     fontSize = 16.sp,
-                    color = Color.Gray,
+                    color = WhiteText.copy(alpha = 0.8f),
                     fontWeight = FontWeight.Light
                 )
 
@@ -206,7 +209,7 @@ fun SplashScreenStaticPreview() {
                 Surface(
                     modifier = Modifier.size(80.dp),
                     shape = CircleShape,
-                    color = RedPrimary.copy(alpha = 0.2f)
+                    color = BlueText.copy(alpha = 0.2f)
                 ) {
                     Box(
                         contentAlignment = Alignment.Center
@@ -215,17 +218,18 @@ fun SplashScreenStaticPreview() {
                             text = "NDSI\nLogo",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = RedPrimary
+                            color = BlueText
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // NDSI text - BLUE
                 Text(
                     text = "NDSI",
                     fontSize = 24.sp,
-                    color = RedPrimary,
+                    color = BlueText,
                     fontWeight = FontWeight.Bold
                 )
             }

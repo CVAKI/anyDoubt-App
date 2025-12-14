@@ -2,42 +2,42 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Internet permission for Gemini API and Firebase -->
+    <!-- Required Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Permission to read external storage for PDF files -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-
-    <!-- For Android 13+ -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Query for PDF files -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.GET_CONTENT" />
-            <data android:mimeType="application/pdf" />
-        </intent>
-    </queries>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@drawable/anydoubt"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AnyDoubt"
         tools:targetApi="31">
 
-        <!-- Splash Activity - LAUNCHER -->
+        <!-- Add this meta-data tag with your AdMob App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3734613584513892~2940617399"/>
+
+        <property
+            android:name="android.adservices.AD_SERVICES_CONFIG"
+            android:resource="@xml/gma_ad_services_config"
+            tools:replace="android:resource" />
+
+        <!-- CRITICAL FIX: Add this property with tools:replace to resolve the conflict -->
+        <property
+            android:name="android.adservices.AD_SERVICES_CONFIG"
+            android:resource="@xml/gma_ad_services_config"
+            tools:replace="android:resource" />
+
+        <!-- Splash Activity (LAUNCHER) -->
         <activity
             android:name=".SplashActivity"
             android:exported="true"
-            android:theme="@style/Theme.AnyDoubt.Splash">
+            android:theme="@style/Theme.AnyDoubt">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -50,27 +50,47 @@
             android:exported="false"
             android:theme="@style/Theme.AnyDoubt" />
 
+        <!-- Internet Check Activity -->
+        <activity
+            android:name=".InternetCheckActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AnyDoubt" />
+
         <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
-            android:label="@string/app_name"
             android:theme="@style/Theme.AnyDoubt" />
-        <activity android:name=".AnswerActivity" />
-        <!-- Add this before the closing </application> tag -->
+
+        <!-- Answer Activity -->
+        <activity
+            android:name=".AnswerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AnyDoubt" />
+
+        <!-- Analyzing Loading Activity -->
         <activity
             android:name=".AnalyzingLoadingActivity"
             android:exported="false"
             android:theme="@style/Theme.AnyDoubt" />
+
+        <!-- Gallery Activity -->
         <activity
             android:name=".GalleryActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:theme="@style/Theme.AnyDoubt" />
 
+        <!-- Note Detail Activity -->
         <activity
             android:name=".NoteDetailActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:theme="@style/Theme.AnyDoubt" />
+
+        <!-- Update Activity -->
+        <activity
+            android:name=".UpdateActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AnyDoubt" />
 
     </application>
 

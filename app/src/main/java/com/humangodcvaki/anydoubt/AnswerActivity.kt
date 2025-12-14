@@ -638,7 +638,7 @@ fun AnswerScreen(
                         OutlinedTextField(
                             value = question,
                             onValueChange = { question = it },
-                            placeholder = { Text("Ask anything or request diagrams...", color = Color.Gray) },
+                            placeholder = { Text("Ask anything......", color = Color.Gray) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             leadingIcon = {
